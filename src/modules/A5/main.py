@@ -1,5 +1,8 @@
 import streamlit as st
 import importlib
+from backend_manager import ensure_backend_running
+
+ensure_backend_running()
 
 st.set_page_config(
     page_title="MedTrackPro | Clinical Dashboard",

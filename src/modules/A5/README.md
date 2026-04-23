@@ -53,3 +53,20 @@ A database management system project developed for the Semester 4 DBMS coursewor
 - Advanced user authentication
 - Exporting reports to PDF
 - Complete testing suite integration
+
+## ☁️ Streamlit Community Cloud Deployment
+
+This project now supports **Streamlit-first deployment** (where only `main.py` is launched):
+
+1. Set the Streamlit app entrypoint to: `src/modules/A5/main.py`
+2. Add dependencies in `requirements.txt` (Streamlit, Flask, flask-cors, pymongo, python-dotenv, requests, pandas).
+3. Configure secrets/environment variables in Streamlit Cloud:
+   - `MONGO_URI` (required)
+   - `FLASK_PORT=8000` (optional; default is 8000)
+   - `API_BASE_URL=http://127.0.0.1:8000/api` (optional; auto-derived if omitted)
+4. Deploy. The Streamlit app automatically starts the Flask backend internally if it is not already running.
+
+For VM/Docker environments where custom start commands are allowed, you can still run:
+```bash
+python src/modules/A5/run_app.py
+```
