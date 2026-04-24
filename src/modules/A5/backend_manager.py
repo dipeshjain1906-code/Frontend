@@ -1,7 +1,7 @@
 """Backend process manager for Streamlit-first deployments.
 
 Streamlit Community Cloud only starts the Streamlit entrypoint. This module
-attempts to start the Flask API when missing, but never crashes Streamlit.
+ensures the Flask API is started in-process environment when missing.
 """
 
 from __future__ import annotations
@@ -56,53 +56,48 @@ def _stop_backend() -> None:
         _BACKEND_PROC = None
 
 
-def ensure_backend_running() -> bool:
-    """Start Flask API when Streamlit is the only launched process.
-
-    Returns True if backend is reachable, False otherwise.
-    This function must not raise startup exceptions in Streamlit Cloud.
-    """
+def ensure_backend_running() -> None:
+    """Start Flask API when Streamlit is the only launched process."""
     global _BACKEND_PROC
 
     if os.getenv("DISABLE_INTERNAL_FLASK", "0") == "1":
-        return _is_backend_healthy(_api_base_url())
+        return
 
     with _LOCK:
         base_url = _api_base_url()
 
+        # If API already reachable, don't start another backend.
         if _is_backend_healthy(base_url):
-            return True
+            return
 
+        # Reuse previously spawned process if still alive.
         if _BACKEND_PROC is not None and _BACKEND_PROC.poll() is None:
-            return _is_backend_healthy(base_url)
+            return
 
         app_dir = Path(__file__).resolve().parent
         flask_script = str(app_dir / "flask_app.py")
         env = os.environ.copy()
         env.setdefault("FLASK_PORT", os.getenv("FLASK_PORT", "8000"))
 
-        try:
-            _BACKEND_PROC = subprocess.Popen(
-                [sys.executable, flask_script],
-                cwd=app_dir,
-                env=env,
-            )
-        except Exception as exc:
-            print(f"[backend_manager] Failed to spawn Flask: {exc}")
-            return False
+        _BACKEND_PROC = subprocess.Popen(
+            [sys.executable, flask_script],
+            cwd=app_dir,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
+        # Wait until backend is ready (better than fixed sleep on cloud).
         max_wait = float(os.getenv("BACKEND_HEALTH_TIMEOUT", "20"))
         deadline = time.time() + max_wait
         while time.time() < deadline:
             if _BACKEND_PROC.poll() is not None:
-                print("[backend_manager] Flask exited during startup; app will continue without backend.")
-                return False
+                raise RuntimeError("Flask backend exited during startup")
             if _is_backend_healthy(base_url):
-                return True
+                break
             time.sleep(0.4)
-
-        print("[backend_manager] Flask did not become healthy before timeout.")
-        return False
+        else:
+            raise TimeoutError("Flask backend did not become ready in time")
 
 
 atexit.register(_stop_backend)
