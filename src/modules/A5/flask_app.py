@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from db_connection import get_db
@@ -112,4 +113,5 @@ def get_dashboard(patient_id):
         return jsonify({"error": str(e)}), 400
 
 if __name__ == '__main__':
-    app.run(port=5005, debug=True)
+    port = int(os.getenv('FLASK_PORT', '8000'))
+    app.run(host='0.0.0.0', port=port, debug=False)
